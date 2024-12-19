@@ -68,6 +68,14 @@ class PlantCareEditor(QMainWindow):
         self.preview_widget = QTextEdit(readOnly=True)
         self.content_splitter.addWidget(self.preview_widget)
 
+        # Информационный текст, если все панели скрыты
+        self.info_label = QLabel(
+            "Все панели скрыты. Используйте меню 'Вид', чтобы их вернуть.", self)
+        self.info_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.info_label.setStyleSheet("font-size: 16px; color: gray;")
+        self.info_label.hide()
+        self.main_layout.addWidget(self.info_label)
+
         # Создание тулбара
         self.toolbar = QToolBar("Стиль")
         self.addToolBar(self.toolbar)
@@ -223,6 +231,9 @@ class PlantCareEditor(QMainWindow):
         editor.setFocus()
 
     def save_file_as(self):
+        if current_editor is None:
+            return
+
         current_editor = self.get_current_editor()
         if current_editor:
             file_path, _ = QFileDialog.getSaveFileName(
@@ -252,11 +263,9 @@ class PlantCareEditor(QMainWindow):
             else:
                 QMessageBox.warning(
                     self, "Ошибка", "В директории нет доступных шаблонов.")
-                self.create_new_tab()
         else:
             QMessageBox.warning(
                 self, "Ошибка", "Директория с шаблонами не найдена.")
-            self.create_new_tab()
 
     def close_tab(self, index):
         self.tab_widget.removeTab(index)
@@ -287,6 +296,8 @@ class PlantCareEditor(QMainWindow):
                 current_editor.setPlainText(content)
                 self.tab_widget.setTabText(
                     self.tab_widget.currentIndex(), os.path.basename(file_path))
+                self.tab_widget.setTabToolTip(
+                    self.tab_widget.currentIndex(), file_path)
         except Exception as e:
             print(f"Ошибка при открытии файла: {e}")
 
@@ -300,10 +311,15 @@ class PlantCareEditor(QMainWindow):
                     self.create_new_tab(content)
                     self.tab_widget.setTabText(
                         self.tab_widget.currentIndex(), os.path.basename(file_path))
+                    self.tab_widget.setTabToolTip(
+                        self.tab_widget.currentIndex(), file_path)
             except Exception as e:
                 print(f"Ошибка при открытии файла: {e}")
 
     def export_to_html(self):
+        if current_editor is None:
+            return
+
         current_editor = self.get_current_editor()
         if current_editor:
             html_path, _ = QFileDialog.getSaveFileName(
@@ -352,6 +368,10 @@ class PlantCareEditor(QMainWindow):
             cursor.movePosition(QTextCursor.MoveOperation.StartOfBlock)
             current_line = cursor.block().text().strip()
 
+            if not current_line.strip():
+                cursor.insertText(header)
+                return
+
             if current_line.startswith(header):
                 cursor.select(QTextCursor.SelectionType.BlockUnderCursor)
                 # Удаляем только заголовок, оставляя остальной текст
@@ -391,6 +411,7 @@ class PlantCareEditor(QMainWindow):
         action = self.sender()
         action.setText(
             "Скрыть редактор" if not is_visible else "Показать редактор")
+        self.update_info_label_visibility()
 
     def toggle_preview_visibility(self):
         is_visible = self.preview_widget.isVisible()
@@ -398,6 +419,7 @@ class PlantCareEditor(QMainWindow):
         action = self.sender()
         action.setText(
             "Скрыть превью" if not is_visible else "Показать превью")
+        self.update_info_label_visibility()
 
     def change_working_directory(self):
         directory = QFileDialog.getExistingDirectory(
@@ -417,9 +439,15 @@ class PlantCareEditor(QMainWindow):
         for url in event.mimeData().urls():
             file_path = url.toLocalFile()
             if QDir(file_path).exists():
-                self.file_model.setRootPath(file_path)
-                self.file_view.setRootIndex(self.file_model.index(file_path))
-                self.current_directory = file_path
+                reply = QMessageBox.question(
+                    self, "Смена директории", "Вы действительно хотите сменить рабочую директорию?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+                )
+                if reply == QMessageBox.StandardButton.Yes:
+                    self.file_model.setRootPath(file_path)
+                    self.file_view.setRootIndex(
+                        self.file_model.index(file_path))
+                    self.current_directory = file_path
             else:
                 try:
                     with open(file_path, 'r', encoding='utf-8') as file:
@@ -474,7 +502,7 @@ class PlantCareEditor(QMainWindow):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    app.setStyleSheet('''QWidget { font-size: 14px; }''')
+    app.setStyleSheet('QWidget { font-family: Arial; font-size: 14px; }')
 
     PlantCareEditor = PlantCareEditor()
     PlantCareEditor.show()
