@@ -272,6 +272,13 @@ class PlantCareEditor(QMainWindow):
 
     def open_file(self, index):
         file_path = self.file_model.filePath(index)
+
+        for i in range(self.tab_widget.count()):
+            tab_text = self.tab_widget.tabText(i)
+            if tab_text == os.path.basename(file_path):
+                self.tab_widget.setCurrentIndex(i)
+                return
+
         try:
             with open(file_path, 'r', encoding='utf-8') as file:
                 content = file.read()
