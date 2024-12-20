@@ -1,9 +1,10 @@
 import os
 import sys
+import json
 from PyQt6.QtWidgets import (QApplication, QWidget, QMainWindow, QVBoxLayout, QTextEdit,
                              QTreeView, QToolBar, QTabWidget, QSplitter, QFileDialog, QLabel, QDialog, QMessageBox)
-from PyQt6.QtCore import (Qt, QDir, QEvent)
-from PyQt6.QtGui import (QFileSystemModel, QTextCursor, QAction)
+from PyQt6.QtCore import (Qt, QDir, QEvent, QSettings)
+from PyQt6.QtGui import (QFileSystemModel, QTextCursor, QAction, QIcon)
 
 
 class PlantCareEditor(QMainWindow):
@@ -76,6 +77,8 @@ class PlantCareEditor(QMainWindow):
         self.info_label.hide()
         self.main_layout.addWidget(self.info_label)
 
+        self.restore_application_state()
+
         # Создание тулбара
         self.toolbar = QToolBar("Стиль")
         self.addToolBar(self.toolbar)
@@ -94,26 +97,42 @@ class PlantCareEditor(QMainWindow):
         file_menu = menu_bar.addMenu("Файл")
 
         new_action = QAction("Создать файл", self)
+        new_action.setIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentNew))
+        new_action.setShortcut("Ctrl+N")
         new_action.triggered.connect(self.create_new_tab)
         file_menu.addAction(new_action)
 
         template_action = QAction("Создать из шаблона...", self)
+        template_action.setIcon(QIcon.fromTheme(
+            QIcon.ThemeIcon.DocumentPageSetup))
+        template_action.setShortcut("Alt+N")
         template_action.triggered.connect(self.select_template)
         file_menu.addAction(template_action)
 
         file_menu.addSeparator()
 
         open_project_action = QAction("Открыть проект...", self)
+        open_project_action.setIcon(
+            QIcon.fromTheme(QIcon.ThemeIcon.FolderOpen))
         open_project_action.triggered.connect(self.change_working_directory)
         file_menu.addAction(open_project_action)
 
         open_action = QAction("Открыть файл...", self)
+        open_action.setIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentOpen))
+        open_action.setShortcut("Ctrl+O")
         open_action.triggered.connect(self.open_file_dialog)
         file_menu.addAction(open_action)
 
         file_menu.addSeparator()
 
+        save_action = QAction("Сохранить", self)
+        save_action.setIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentSave))
+        save_action.setShortcut("Ctrl+S")
+        save_action.triggered.connect(self.save_file)
+        file_menu.addAction(save_action)
+
         save_as_action = QAction("Сохранить как...", self)
+        save_as_action.setIcon(QIcon.fromTheme(QIcon.ThemeIcon.DocumentSaveAs))
         save_as_action.triggered.connect(self.save_file_as)
         file_menu.addAction(save_as_action)
 
@@ -124,25 +143,35 @@ class PlantCareEditor(QMainWindow):
         file_menu.addSeparator()
 
         exit_action = QAction("Выход", self)
+        exit_action.setIcon(QIcon.fromTheme(QIcon.ThemeIcon.WindowClose))
+        exit_action.setShortcut("Ctrl+Q")
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
 
         # Меню "Правка"
         edit_menu = menu_bar.addMenu("Правка")
+
         cut_action = QAction("Вырезать", self)
+        cut_action.setIcon(QIcon.fromTheme(QIcon.ThemeIcon.EditCut))
+        cut_action.setShortcut("Ctrl+X")
         cut_action.triggered.connect(self.cut_text)
         edit_menu.addAction(cut_action)
 
         copy_action = QAction("Копировать", self)
+        copy_action.setIcon(QIcon.fromTheme(QIcon.ThemeIcon.EditCopy))
+        copy_action.setShortcut("Ctrl+C")
         copy_action.triggered.connect(self.copy_text)
         edit_menu.addAction(copy_action)
 
         paste_action = QAction("Вставить", self)
+        paste_action.setIcon(QIcon.fromTheme(QIcon.ThemeIcon.EditPaste))
+        paste_action.setShortcut("Ctrl+V")
         paste_action.triggered.connect(self.paste_text)
         edit_menu.addAction(paste_action)
 
         # Меню "Вид"
         view_menu = menu_bar.addMenu("Вид")
+
         toggle_preview_action = QAction("Скрыть превью", self)
         toggle_preview_action.triggered.connect(self.toggle_preview_visibility)
         view_menu.addAction(toggle_preview_action)
@@ -153,29 +182,38 @@ class PlantCareEditor(QMainWindow):
 
         # Меню "Справка"
         help_menu = menu_bar.addMenu("Справка")
+
         about_action = QAction("О программе", self)
+        about_action.setIcon(QIcon.fromTheme(QIcon.ThemeIcon.HelpAbout))
         about_action.triggered.connect(self.show_about_dialog)
         help_menu.addAction(about_action)
 
     def add_toolbar_actions(self):
         # **Жирный**
         bold_action = QAction("Жирный", self)
+        bold_action.setIcon(QIcon.fromTheme(QIcon.ThemeIcon.FormatTextBold))
         bold_action.triggered.connect(lambda: self.toggle_format_text("**"))
         self.toolbar.addAction(bold_action)
 
         # *Курсивный*
         italic_action = QAction("Курсив", self)
+        italic_action.setIcon(QIcon.fromTheme(
+            QIcon.ThemeIcon.FormatTextItalic))
         italic_action.triggered.connect(lambda: self.toggle_format_text("*"))
         self.toolbar.addAction(italic_action)
 
         # _Подчеркнутый_
         emphasized_action = QAction("Подчеркнутый", self)
+        emphasized_action.setIcon(QIcon.fromTheme(
+            QIcon.ThemeIcon.FormatTextUnderline))
         emphasized_action.triggered.connect(
             lambda: self.toggle_format_text("_"))
         self.toolbar.addAction(emphasized_action)
 
         # ~~Зачеркнутый~~
         crossed_out_action = QAction("Зачеркнутый", self)
+        crossed_out_action.setIcon(QIcon.fromTheme(
+            QIcon.ThemeIcon.FormatTextStrikethrough))
         crossed_out_action.triggered.connect(
             lambda: self.toggle_format_text("~~"))
         self.toolbar.addAction(crossed_out_action)
@@ -230,10 +268,23 @@ class PlantCareEditor(QMainWindow):
 
         editor.setFocus()
 
-    def save_file_as(self):
-        if current_editor is None:
-            return
+    def save_file(self):
+        current_editor = self.get_current_editor()
+        if current_editor:
+            file_path = self.tab_widget.tabToolTip(
+                self.tab_widget.currentIndex())
+            if file_path:
+                try:
+                    with open(file_path, 'w', encoding='utf-8') as file:
+                        file.write(current_editor.toPlainText())
+                    self.current_directory = os.path.dirname(file_path)
+                except Exception as e:
+                    QMessageBox.critical(
+                        self, "Ошибка", f"Ошибка при сохранении файла: {e}")
+            else:
+                self.save_file_as()
 
+    def save_file_as(self):
         current_editor = self.get_current_editor()
         if current_editor:
             file_path, _ = QFileDialog.getSaveFileName(
@@ -244,8 +295,12 @@ class PlantCareEditor(QMainWindow):
                         file.write(current_editor.toPlainText())
                     self.tab_widget.setTabText(
                         self.tab_widget.currentIndex(), os.path.basename(file_path))
+                    self.current_directory = os.path.dirname(file_path)
+                    self.tab_widget.setTabToolTip(
+                        self.tab_widget.currentIndex(), file_path)
                 except Exception as e:
-                    print(f"Ошибка при сохранении файла: {e}")
+                    QMessageBox.critical(
+                        self, "Ошибка", f"Ошибка при сохранении файла: {e}")
 
     def select_template(self):
         templates_dir = os.path.join(self.current_directory, "templates")
@@ -317,10 +372,8 @@ class PlantCareEditor(QMainWindow):
                 print(f"Ошибка при открытии файла: {e}")
 
     def export_to_html(self):
-        if current_editor is None:
-            return
-
         current_editor = self.get_current_editor()
+
         if current_editor:
             html_path, _ = QFileDialog.getSaveFileName(
                 self, "Экспортировать в HTML", self.current_directory, "HTML Files (*.html)")
@@ -328,8 +381,10 @@ class PlantCareEditor(QMainWindow):
                 try:
                     with open(html_path, 'w', encoding='utf-8') as file:
                         file.write(current_editor.toHtml())
+                    self.current_directory = os.path.dirname(html_path)
                 except Exception as e:
-                    print(f"Ошибка при экспорте файла: {e}")
+                    QMessageBox.critical(
+                        self, "Ошибка", f"Ошибка при экспорте файла: {e}")
 
     def get_current_editor(self):
         current_widget = self.tab_widget.currentWidget()
@@ -498,6 +553,182 @@ class PlantCareEditor(QMainWindow):
         editor = self.get_current_editor()
         if editor:
             editor.paste()
+
+    def close_tab(self, index):
+        editor = self.tab_widget.widget(index)
+        if isinstance(editor, QTextEdit):
+            file_path = self.tab_widget.tabToolTip(index)
+            if file_path:
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content_on_disk = f.read()
+                        if editor.toPlainText() != content_on_disk:
+
+                            reply = QMessageBox.question(self, 'Несохраненные изменения',
+                                                         f"В файле '{os.path.basename(file_path)}' имеются несохраненные изменения. Сохранить?",
+                                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel)
+
+                            if reply == QMessageBox.StandardButton.Yes:
+                                self.save_file_by_path(
+                                    file_path, editor.toPlainText())
+                                self.tab_widget.removeTab(index)
+                            elif reply == QMessageBox.StandardButton.No:
+                                self.tab_widget.removeTab(index)
+                            else:
+                                return
+
+                except FileNotFoundError:
+                    # Обработка случая, когда файл был удален вне приложения
+                    reply = QMessageBox.question(self, 'Файл не найден',
+                                                 f"Файл '{os.path.basename(file_path)}' не найден. Сохранить как?",
+                                                 QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel)
+                    if reply == QMessageBox.StandardButton.Yes:
+                        self.save_file_as()
+                    elif reply == QMessageBox.StandardButton.No:
+                        self.tab_widget.removeTab(index)
+                    else:
+                        return
+
+            elif editor.toPlainText().strip():  # Если файл не существует, но есть текст
+                reply = QMessageBox.question(self, 'Несохраненные изменения',
+                                             "Имеются несохраненные изменения. Сохранить?",
+                                             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel)
+
+                if reply == QMessageBox.StandardButton.Yes:
+                    self.save_file_as()
+                elif reply == QMessageBox.StandardButton.No:
+                    self.tab_widget.removeTab(index)
+                else:
+                    return  # отмена закрытия вкладки
+
+        # Если файл не был изменен или вкладка пустая
+        self.tab_widget.removeTab(index)
+
+    def closeEvent(self, event):
+        self.save_application_state()
+
+        unsaved_changes = False
+        for i in range(self.tab_widget.count()):
+            editor = self.tab_widget.widget(i)
+            if isinstance(editor, QTextEdit):
+                file_path = self.tab_widget.tabToolTip(i)
+                if file_path:
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            content_on_disk = f.read()
+                            if editor.toPlainText() != content_on_disk:
+                                unsaved_changes = True
+                                break
+                    except FileNotFoundError:
+                        unsaved_changes = True
+                        break
+                elif editor.toPlainText().strip():
+                    unsaved_changes = True
+                    break
+
+        if unsaved_changes:
+            reply = QMessageBox.question(self, 'Несохраненные изменения',
+                                         "Имеются несохраненные изменения. Сохранить?",
+                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No | QMessageBox.StandardButton.Cancel)
+            if reply == QMessageBox.StandardButton.Yes:
+                for i in range(self.tab_widget.count()):
+                    editor = self.tab_widget.widget(i)
+                    if isinstance(editor, QTextEdit):
+                        file_path = self.tab_widget.tabToolTip(i)
+                        if file_path:
+                            try:
+                                with open(file_path, 'r', encoding='utf-8') as f:
+                                    content_on_disk = f.read()
+                                    if editor.toPlainText() != content_on_disk:
+                                        self.save_file_by_path(
+                                            file_path, editor.toPlainText())
+                            except FileNotFoundError:
+                                # Если файл был удален - предлагаем сохранить как...
+                                self.save_file_as()
+                        elif editor.toPlainText().strip():  # Если файла не было, сохраняем как...
+                            self.save_file_as()
+                event.accept()
+
+            elif reply == QMessageBox.StandardButton.No:
+                event.accept()
+            else:
+                event.ignore()
+        else:
+            event.accept()
+
+    def save_file_by_path(self, file_path, content):
+        try:
+            with open(file_path, 'w', encoding='utf-8') as file:
+                file.write(content)
+            self.tab_widget.setTabText(
+                self.tab_widget.currentIndex(), os.path.basename(file_path))
+            self.current_directory = os.path.dirname(file_path)
+        except Exception as e:
+            QMessageBox.critical(
+                self, "Ошибка", f"Ошибка при сохранении файла: {e}")
+
+    def save_application_state(self):
+        settings = QSettings("harakki", "PlantCareEditor")
+
+        # Сохраняем текущую директорию
+        settings.setValue("current_directory", self.current_directory)
+
+        # Сохраняем информацию об открытых файлах
+        open_files = []
+        for i in range(self.tab_widget.count()):
+            editor = self.tab_widget.widget(i)
+            if isinstance(editor, QTextEdit):
+                file_path = self.tab_widget.tabToolTip(i)
+                if file_path:  # Сохраняем только если файл существует
+                    open_files.append(
+                        {"path": file_path, "content": editor.toPlainText()})
+        settings.setValue("open_files", json.dumps(open_files))
+
+        # Сохраняем геометрию окна
+        settings.setValue("geometry", self.saveGeometry())
+        # Сохраняем состояние окна
+        settings.setValue("windowState", self.saveState())
+
+    def restore_application_state(self):
+        settings = QSettings("harakki", "PlantCareEditor")
+
+        # Восстанавливаем текущую директорию
+        self.current_directory = settings.value(
+            "current_directory", QDir.currentPath())
+        self.file_model.setRootPath(self.current_directory)
+        self.file_view.setRootIndex(
+            self.file_model.index(self.current_directory))
+
+        # Восстанавливаем открытые файлы
+        open_files = json.loads(settings.value("open_files", "[]"))
+        for file_data in open_files:
+            file_path = file_data.get("path")  # получаем путь к файлу
+
+            # проверяем, что файл существует
+            if file_path and os.path.exists(file_path):
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as file:
+                        content = file.read()
+                        self.create_new_tab(content)
+                        self.tab_widget.setTabText(
+                            self.tab_widget.currentIndex(), os.path.basename(file_path))
+                        self.tab_widget.setTabToolTip(
+                            self.tab_widget.currentIndex(), file_path)
+                except Exception as e:
+                    print(f"Ошибка при восстановлении файла: {e}")
+
+            else:
+                self.create_new_tab(file_data.get("content"))
+
+        # Восстанавливаем геометрию
+        if settings.value("geometry"):
+            self.restoreGeometry(settings.value("geometry"))
+        # Восстанавливаем состояние
+        if settings.value("windowState"):
+            self.restoreState(settings.value("windowState"))
+
+        if self.tab_widget.count() == 0:
+            self.create_new_tab()
 
 
 if __name__ == '__main__':
