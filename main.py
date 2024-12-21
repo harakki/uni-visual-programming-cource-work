@@ -1,9 +1,9 @@
 import os
 import sys
 import json
+from PyQt6.QtCore import (Qt, QDir, QEvent, QSettings)
 from PyQt6.QtWidgets import (QApplication, QWidget, QMainWindow, QVBoxLayout, QTextEdit,
                              QTreeView, QToolBar, QTabWidget, QSplitter, QFileDialog, QLabel, QDialog, QMessageBox)
-from PyQt6.QtCore import (Qt, QDir, QEvent, QSettings)
 from PyQt6.QtGui import (QFileSystemModel, QTextCursor, QAction, QIcon)
 
 
@@ -357,19 +357,20 @@ class PlantCareEditor(QMainWindow):
             print(f"Ошибка при открытии файла: {e}")
 
     def open_file_dialog(self):
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "Открыть файл", self.current_directory, "Markdown Files (*.md)")
-        if file_path:
-            try:
-                with open(file_path, 'r', encoding='utf-8') as file:
-                    content = file.read()
-                    self.create_new_tab(content)
-                    self.tab_widget.setTabText(
-                        self.tab_widget.currentIndex(), os.path.basename(file_path))
-                    self.tab_widget.setTabToolTip(
-                        self.tab_widget.currentIndex(), file_path)
-            except Exception as e:
-                print(f"Ошибка при открытии файла: {e}")
+        file_paths, _ = QFileDialog.getOpenFileNames(
+            self, "Открыть файлы", self.current_directory, "Markdown Files (*.md)")
+        if file_paths:
+            for file_path in file_paths:
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as file:
+                        content = file.read()
+                        self.create_new_tab(content)
+                        self.tab_widget.setTabText(
+                            self.tab_widget.currentIndex(), os.path.basename(file_path))
+                        self.tab_widget.setTabToolTip(
+                            self.tab_widget.currentIndex(), file_path)
+                except Exception as e:
+                    print(f"Ошибка при открытии файла: {e}")
 
     def export_to_html(self):
         current_editor = self.get_current_editor()
@@ -466,7 +467,6 @@ class PlantCareEditor(QMainWindow):
         action = self.sender()
         action.setText(
             "Скрыть редактор" if not is_visible else "Показать редактор")
-        self.update_info_label_visibility()
 
     def toggle_preview_visibility(self):
         is_visible = self.preview_widget.isVisible()
@@ -474,11 +474,11 @@ class PlantCareEditor(QMainWindow):
         action = self.sender()
         action.setText(
             "Скрыть превью" if not is_visible else "Показать превью")
-        self.update_info_label_visibility()
 
-    def change_working_directory(self):
-        directory = QFileDialog.getExistingDirectory(
-            self, "Выбрать папку проекта", self.current_directory)
+    def change_working_directory(self, directory=None):
+        if not directory:
+            directory = QFileDialog.getExistingDirectory(
+                self, "Выбрать папку проекта", self.current_directory)
         if directory:
             self.current_directory = directory
             self.file_model.setRootPath(directory)
@@ -486,7 +486,7 @@ class PlantCareEditor(QMainWindow):
 
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
-            event.accept()
+            event.acceptProposedAction()
         else:
             event.ignore()
 
@@ -499,10 +499,7 @@ class PlantCareEditor(QMainWindow):
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
                 )
                 if reply == QMessageBox.StandardButton.Yes:
-                    self.file_model.setRootPath(file_path)
-                    self.file_view.setRootIndex(
-                        self.file_model.index(file_path))
-                    self.current_directory = file_path
+                    self.change_working_directory(file_path)
             else:
                 try:
                     with open(file_path, 'r', encoding='utf-8') as file:
@@ -512,6 +509,8 @@ class PlantCareEditor(QMainWindow):
                         current_editor.setPlainText(content)
                         self.tab_widget.setTabText(
                             self.tab_widget.currentIndex(), os.path.basename(file_path))
+                        self.tab_widget.setTabToolTip(
+                            self.tab_widget.currentIndex(), file_path)
                 except Exception as e:
                     print(
                         f"Ошибка при открытии файла через drag and drop: {e}")
